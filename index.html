@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS Walk Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="manifest" href="manifest.json">
+  <style>
+    #map { height: 70vh; }
+    #log { height: 30vh; overflow-y: auto; padding: 10px; background: #f1f1f1; }
+    button { margin: 10px; padding: 10px 20px; font-size: 16px; }
+  </style>
+</head>
+<body>
+
+<h2 style="text-align:center">🚶 GPS Walk Tracker</h2>
+<div style="text-align:center">
+  <button onclick="startTracking()">Start Tracking</button>
+  <button onclick="stopTracking()">Stop Tracking</button>
+</div>
+
+<div id="map"></div>
+<div id="log"><strong>Walked Path:</strong><ul id="segments"></ul></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+let map = L.map('map').setView([0, 0], 13);
+let path = [], polyline, watchId;
+let segmentList = document.getElementById("segments");
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+function startTracking() {
+  if (!navigator.geolocation) {
+    alert("Geolocation not supported.");
+    return;
+  }
+
+  path = [];
+  if (polyline) map.removeLayer(polyline);
+  segmentList.innerHTML = "";
+
+  watchId = navigator.geolocation.watchPosition(
+    position => {
+      const latlng = [position.coords.latitude, position.coords.longitude];
+      path.push(latlng);
+      if (polyline) {
+        polyline.setLatLngs(path);
+      } else {
+        polyline = L.polyline(path, {color: 'blue'}).addTo(map);
+      }
+
+      map.setView(latlng, 16);
+      if (path.length === 1) {
+        L.marker(latlng).addTo(map).bindPopup("Start").openPopup();
+      }
+    },
+    error => alert("Error: " + error.message),
+    { enableHighAccuracy: true }
+  );
+}
+
+function stopTracking() {
+  navigator.geolocation.clearWatch(watchId);
+  if (path.length > 1) {
+    const end = path[path.length - 1];
+    L.marker(end).addTo(map).bindPopup("Destination").openPopup();
+    for (let i = 0; i < path.length - 1; i++) {
+      const from = path[i], to = path[i + 1];
+      const li = document.createElement("li");
+      li.textContent = `Step ${i+1}: (${from[0].toFixed(5)}, ${from[1].toFixed(5)}) → (${to[0].toFixed(5)}, ${to[1].toFixed(5)})`;
+      segmentList.appendChild(li);
+    }
+  }
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+</body>
+</html>
